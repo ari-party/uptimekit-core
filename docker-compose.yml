@@ -11,10 +11,13 @@ services:
       - CLICKHOUSE_USER=default
       - CLICKHOUSE_PASSWORD=clickhouse
       - REDIS_URL=redis://redis:6379
+      - APPRISE_API_URL=http://apprise:8000
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_started
+      apprise:
         condition: service_started
     healthcheck:
       test:
@@ -73,6 +76,12 @@ services:
       - redis_data:/data
     restart: always
 
+  apprise:
+    image: caronc/apprise:latest
+    volumes:
+      - apprise_data:/config
+    restart: always
+
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     volumes:
@@ -93,3 +102,4 @@ volumes:
   db_data:
   clickhouse_data:
   redis_data:
+  apprise_data:

@@ -28,6 +28,9 @@
 		},
 		"./pkg/integrations/definitions/alertmanager": {
 			"default": "./src/pkg/integrations/definitions/alertmanager.ts"
+		},
+		"./pkg/integrations/definitions/apprise-meta": {
+			"default": "./src/pkg/integrations/definitions/apprise-meta.ts"
 		}
 	},
 	"type": "module",

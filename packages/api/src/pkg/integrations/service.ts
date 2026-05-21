@@ -7,6 +7,7 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 import { eventBus } from "../../lib/events";
 import { alertManagerIntegration } from "./definitions/alertmanager";
+import { appriseIntegration } from "./definitions/apprise";
 import { discordIntegration } from "./definitions/discord";
 import { telegramIntegration } from "./definitions/telegram";
 import { webhookIntegration } from "./definitions/webhook";
@@ -17,6 +18,7 @@ integrationRegistry.register(webhookIntegration);
 integrationRegistry.register(discordIntegration);
 integrationRegistry.register(telegramIntegration);
 integrationRegistry.register(alertManagerIntegration);
+integrationRegistry.register(appriseIntegration);
 
 export function dedupeNotificationConfigs<TConfig extends { id: string }>(
 	configs: TConfig[],
