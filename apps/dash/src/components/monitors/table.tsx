@@ -387,7 +387,8 @@ export function MonitorsTable() {
 	const renderGroupNode = (
 		node: GroupTreeNode<GroupNodeInput>,
 	): ReactNode[] => {
-		if (countSubtreeMonitors(node) === 0) return [];
+		const subtreeCount = countSubtreeMonitors(node);
+		if (subtreeCount === 0) return [];
 
 		const isExpanded = expandedGroups[node.group.id] ?? true;
 		const directMonitors = monitorsByGroup[node.group.id] ?? [];
@@ -413,7 +414,7 @@ export function MonitorsTable() {
 						<Folder className="h-4 w-4 text-muted-foreground" />
 						<span>{node.group.name}</span>
 						<span className="text-muted-foreground text-xs">
-							({countSubtreeMonitors(node)})
+							({subtreeCount})
 						</span>
 					</div>
 				</TableCell>
