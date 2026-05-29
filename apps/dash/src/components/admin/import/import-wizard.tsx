@@ -134,6 +134,11 @@ export function ImportWizard() {
 	);
 	const warned = selectedMonitors.filter((m) => (m.warnings?.length ?? 0) > 0);
 
+	const exceedsQuota =
+		preview !== null &&
+		preview.quota.remaining !== null &&
+		selectedMonitors.length > preview.quota.remaining;
+
 	const canPreview = Boolean(
 		organizationId && sourceForm?.isComplete(connection),
 	);
