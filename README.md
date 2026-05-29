@@ -124,11 +124,11 @@ Thank you to all our amazing sponsors who make this project possible!
 
 ## 👀 Previews
 
-### Default theme with Lenght bars
+### Default theme with length bars
 
 ![image](https://r2.uptimekit.dev/previews/default-lenght.png)
 
-### Flat theme with Lenght bars
+### Flat theme with length bars
 
 ![image](https://r2.uptimekit.dev/previews/flat-lenght.png)
 
