@@ -11,7 +11,7 @@ import {
 	parseAsStringEnum,
 	useQueryStates,
 } from "nuqs";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { sileo } from "sileo";
 import {
 	ArrowRight,
@@ -64,6 +64,12 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/utils/orpc";
 import { GroupCreationDialog } from "./group-creation-dialog";
+import {
+	buildGroupPaths,
+	buildGroupTree,
+	type GroupNodeInput,
+	type GroupTreeNode,
+} from "./group-tree";
 import { LatencySparkline } from "./latency-sparkline";
 import { TagCreationDialog } from "./tag-creation-dialog";
 
@@ -246,8 +252,7 @@ export function MonitorsTable() {
 			groupId: (m as any).groupId,
 		})) ?? [];
 
-	// Group monitors by groupId
-	const groupedMonitors = tableData.reduce(
+	const monitorsByGroup = tableData.reduce(
 		(acc, monitor) => {
 			const groupId = monitor.groupId || "ungrouped";
 			if (!acc[groupId]) {
@@ -259,11 +264,174 @@ export function MonitorsTable() {
 		{} as Record<string, (Monitor & { groupId?: string })[]>,
 	);
 
+	const groupTree = buildGroupTree(groups);
+	const groupPaths = buildGroupPaths(groups);
+
+	const countSubtreeMonitors = (
+		node: GroupTreeNode<GroupNodeInput>,
+	): number => {
+		let count = monitorsByGroup[node.group.id]?.length ?? 0;
+		for (const child of node.children) {
+			count += countSubtreeMonitors(child);
+		}
+		return count;
+	};
+
 	const toggleGroup = (groupId: string) => {
 		setExpandedGroups((prev) => ({
 			...prev,
-			[groupId]: !prev[groupId],
+			[groupId]: !(prev[groupId] ?? true),
 		}));
+	};
+
+	const ungroupedMonitors = monitorsByGroup.ungrouped ?? [];
+
+	const renderMonitorRow = (
+		monitor: Monitor & { groupId?: string },
+		depth: number,
+	) => (
+		<TableRow
+			key={monitor.id}
+			className={cn(
+				"group h-[72px] cursor-pointer hover:bg-muted/40",
+				!monitor.active && "opacity-50 grayscale",
+			)}
+			onClick={() => router.push(`/monitors/${monitor.id}`)}
+		>
+			<TableCell
+				className="w-[50px]"
+				style={{ paddingLeft: 24 + (depth + 1) * 16 }}
+			>
+				<div
+					className={cn(
+						"h-2.5 w-2.5 rounded-full shadow-sm",
+						monitor.status === "up" && "bg-emerald-500 shadow-emerald-500/20",
+						monitor.status === "down" && "bg-red-500 shadow-red-500/20",
+						monitor.status === "degraded" && "bg-amber-500 shadow-amber-500/20",
+						monitor.status === "maintenance" &&
+							"bg-blue-500 shadow-blue-500/20",
+						monitor.status === "pending" && "bg-zinc-500 shadow-zinc-500/20",
+					)}
+				/>
+			</TableCell>
+			<TableCell>
+				<div className="grid gap-1">
+					<span className="flex items-center gap-2 font-semibold leading-none transition-colors group-hover:text-primary">
+						{monitor.name}
+						{!monitor.active && (
+							<span className="rounded-full bg-muted px-2 py-0.5 font-medium text-[10px] text-muted-foreground">
+								{getPauseLabel(monitor.pauseReason)}
+							</span>
+						)}
+						{monitor.tags && monitor.tags.length > 0 && (
+							<div className="flex items-center gap-1">
+								{monitor.tags.map((tag) => (
+									<span
+										key={tag.id}
+										className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[10px]"
+										style={{
+											backgroundColor: `${tag.color}20`,
+											color: tag.color,
+										}}
+									>
+										{tag.name}
+									</span>
+								))}
+							</div>
+						)}
+					</span>
+					<div className="flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
+						<span
+							className={cn(
+								monitor.status === "up" && "text-emerald-500",
+								monitor.status === "down" && "text-red-500",
+								monitor.status === "degraded" && "text-amber-500",
+								monitor.status === "maintenance" && "text-blue-500",
+								monitor.status === "pending" && "text-zinc-500",
+							)}
+						>
+							{monitor.statusText}
+						</span>
+						<span>·</span>
+						<span>{monitor.duration}</span>
+						<span>·</span>
+						<span className="underline decoration-muted-foreground/50 decoration-dashed underline-offset-2 transition-colors hover:text-foreground">
+							Used on {monitor.usedOn} status page
+							{monitor.usedOn !== 1 ? "s" : ""}
+						</span>
+					</div>
+				</div>
+			</TableCell>
+			<TableCell className="w-[200px]">
+				{monitor.hasIncident && (
+					<div className="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 font-medium text-red-500 text-xs">
+						<ShieldAlert className="h-3.5 w-3.5" />
+						Ongoing Incident
+						<ChevronRight className="ml-1 h-3 w-3 opacity-50" />
+					</div>
+				)}
+			</TableCell>
+			<TableCell className="w-[100px] font-medium text-muted-foreground text-sm">
+				<div className="flex items-center gap-2">
+					<PlayCircle className="h-4 w-4 opacity-50" />
+					{monitor.frequency}
+				</div>
+			</TableCell>
+			<TableCell className="w-[50px]">
+				<MonitorActions monitor={monitor} />
+			</TableCell>
+			<TableCell className="relative hidden w-[140px] p-0 lg:table-cell">
+				<LatencySparkline data={sparklineData?.[monitor.id] ?? []} />
+			</TableCell>
+		</TableRow>
+	);
+
+	const renderGroupNode = (
+		node: GroupTreeNode<GroupNodeInput>,
+	): ReactNode[] => {
+		if (countSubtreeMonitors(node) === 0) return [];
+
+		const isExpanded = expandedGroups[node.group.id] ?? true;
+		const directMonitors = monitorsByGroup[node.group.id] ?? [];
+		const rows: ReactNode[] = [];
+
+		rows.push(
+			<TableRow
+				key={`group-${node.group.id}`}
+				className="cursor-pointer border-b bg-muted/10 hover:bg-muted/20"
+				onClick={() => toggleGroup(node.group.id)}
+			>
+				<TableCell colSpan={6} className="py-3">
+					<div
+						className="flex select-none items-center gap-2 font-medium text-sm"
+						style={{ marginLeft: node.depth * 16 }}
+					>
+						<ChevronRight
+							className={cn(
+								"h-4 w-4 transition-transform",
+								isExpanded && "rotate-90",
+							)}
+						/>
+						<Folder className="h-4 w-4 text-muted-foreground" />
+						<span>{node.group.name}</span>
+						<span className="text-muted-foreground text-xs">
+							({countSubtreeMonitors(node)})
+						</span>
+					</div>
+				</TableCell>
+			</TableRow>,
+		);
+
+		if (isExpanded) {
+			for (const child of node.children) {
+				rows.push(...renderGroupNode(child));
+			}
+			for (const monitor of directMonitors) {
+				rows.push(renderMonitorRow(monitor, node.depth + 1));
+			}
+		}
+
+		return rows;
 	};
 
 	const clearFilters = () => {
@@ -524,7 +692,7 @@ export function MonitorsTable() {
 								All Groups
 								{!groupFilter && <Check className="h-4 w-4" />}
 							</DropdownMenuItem>
-							{groups?.map((group) => (
+							{groupPaths.map(({ group, path, depth }) => (
 								<DropdownMenuItem
 									key={group.id}
 									onClick={() => {
@@ -532,9 +700,12 @@ export function MonitorsTable() {
 									}}
 									className="flex justify-between"
 								>
-									<div className="flex items-center gap-2">
+									<div
+										className="flex items-center gap-2"
+										style={{ paddingLeft: depth * 12 }}
+									>
 										<Folder className="h-3 w-3 text-muted-foreground" />
-										{group.name}
+										{path}
 									</div>
 									{groupFilter === group.id && <Check className="h-4 w-4" />}
 								</DropdownMenuItem>
@@ -700,143 +871,37 @@ export function MonitorsTable() {
 								</TableCell>
 							</TableRow>
 						) : (
-							Object.entries(groupedMonitors).map(([groupId, monitors]) => {
-								const group = groups?.find((g) => g.id === groupId);
-								const groupName = group?.name || "Ungrouped";
-								const isExpanded = expandedGroups[groupId] ?? true;
-
-								return (
-									<Fragment key={groupId}>
-										{/* Group Header */}
+							<>
+								{groupTree.flatMap((node) => renderGroupNode(node))}
+								{ungroupedMonitors.length > 0 && (
+									<Fragment key="ungrouped">
 										<TableRow
 											className="cursor-pointer border-b bg-muted/10 hover:bg-muted/20"
-											onClick={() => toggleGroup(groupId)}
+											onClick={() => toggleGroup("ungrouped")}
 										>
 											<TableCell colSpan={6} className="py-3">
 												<div className="flex select-none items-center gap-2 font-medium text-sm">
 													<ChevronRight
 														className={cn(
 															"h-4 w-4 transition-transform",
-															isExpanded && "rotate-90",
+															(expandedGroups.ungrouped ?? true) && "rotate-90",
 														)}
 													/>
 													<Folder className="h-4 w-4 text-muted-foreground" />
-													<span>{groupName}</span>
+													<span>Ungrouped</span>
 													<span className="text-muted-foreground text-xs">
-														({monitors.length})
+														({ungroupedMonitors.length})
 													</span>
 												</div>
 											</TableCell>
 										</TableRow>
-
-										{/* Group Monitors */}
-										{isExpanded &&
-											monitors.map((monitor) => (
-												<TableRow
-													key={monitor.id}
-													className={cn(
-														"group h-[72px] cursor-pointer hover:bg-muted/40",
-														!monitor.active && "opacity-50 grayscale",
-													)}
-													onClick={() => router.push(`/monitors/${monitor.id}`)}
-												>
-													<TableCell className="w-[50px] pl-6">
-														<div
-															className={cn(
-																"h-2.5 w-2.5 rounded-full shadow-sm",
-																monitor.status === "up" &&
-																	"bg-emerald-500 shadow-emerald-500/20",
-																monitor.status === "down" &&
-																	"bg-red-500 shadow-red-500/20",
-																monitor.status === "degraded" &&
-																	"bg-amber-500 shadow-amber-500/20",
-																monitor.status === "maintenance" &&
-																	"bg-blue-500 shadow-blue-500/20",
-																monitor.status === "pending" &&
-																	"bg-zinc-500 shadow-zinc-500/20",
-															)}
-														/>
-													</TableCell>
-													<TableCell>
-														<div className="grid gap-1">
-															<span className="flex items-center gap-2 font-semibold leading-none transition-colors group-hover:text-primary">
-																{monitor.name}
-																{!monitor.active && (
-																	<span className="rounded-full bg-muted px-2 py-0.5 font-medium text-[10px] text-muted-foreground">
-																		{getPauseLabel(monitor.pauseReason)}
-																	</span>
-																)}
-																{monitor.tags && monitor.tags.length > 0 && (
-																	<div className="flex items-center gap-1">
-																		{monitor.tags.map((tag) => (
-																			<span
-																				key={tag.id}
-																				className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[10px]"
-																				style={{
-																					backgroundColor: `${tag.color}20`,
-																					color: tag.color,
-																				}}
-																			>
-																				{tag.name}
-																			</span>
-																		))}
-																	</div>
-																)}
-															</span>
-															<div className="flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
-																<span
-																	className={cn(
-																		monitor.status === "up" &&
-																			"text-emerald-500",
-																		monitor.status === "down" && "text-red-500",
-																		monitor.status === "degraded" &&
-																			"text-amber-500",
-																		monitor.status === "maintenance" &&
-																			"text-blue-500",
-																		monitor.status === "pending" &&
-																			"text-zinc-500",
-																	)}
-																>
-																	{monitor.statusText}
-																</span>
-																<span>·</span>
-																<span>{monitor.duration}</span>
-																<span>·</span>
-																<span className="underline decoration-muted-foreground/50 decoration-dashed underline-offset-2 transition-colors hover:text-foreground">
-																	Used on {monitor.usedOn} status page
-																	{monitor.usedOn !== 1 ? "s" : ""}
-																</span>
-															</div>
-														</div>
-													</TableCell>
-													<TableCell className="w-[200px]">
-														{monitor.hasIncident && (
-															<div className="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 font-medium text-red-500 text-xs">
-																<ShieldAlert className="h-3.5 w-3.5" />
-																Ongoing Incident
-																<ChevronRight className="ml-1 h-3 w-3 opacity-50" />
-															</div>
-														)}
-													</TableCell>
-													<TableCell className="w-[100px] font-medium text-muted-foreground text-sm">
-														<div className="flex items-center gap-2">
-															<PlayCircle className="h-4 w-4 opacity-50" />
-															{monitor.frequency}
-														</div>
-													</TableCell>
-													<TableCell className="w-[50px]">
-														<MonitorActions monitor={monitor} />
-													</TableCell>
-													<TableCell className="relative hidden w-[140px] p-0 lg:table-cell">
-														<LatencySparkline
-															data={sparklineData?.[monitor.id] ?? []}
-														/>
-													</TableCell>
-												</TableRow>
-											))}
+										{(expandedGroups.ungrouped ?? true) &&
+											ungroupedMonitors.map((monitor) =>
+												renderMonitorRow(monitor, 0),
+											)}
 									</Fragment>
-								);
-							})
+								)}
+							</>
 						)}
 					</TableBody>
 				</Table>

@@ -40,7 +40,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { client, orpc } from "@/utils/orpc";
+import { buildGroupPaths, getGroupAndDescendantIds } from "./group-tree";
+
+const NO_PARENT_VALUE = "__none__";
+
+interface GroupRecord {
+	id: string;
+	name: string;
+	parentId?: string | null;
+}
 
 interface GroupsManagerProps {
 	autoCreate?: boolean;
@@ -50,7 +66,8 @@ interface GroupsManagerProps {
 /**
  * Render a UI for viewing and managing monitor groups.
  *
- * Allows creating, renaming, and deleting groups via dialogs and confirmation flows, and displays success/error toasts for those actions.
+ * Allows creating, renaming, and deleting groups via dialogs and confirmation flows,
+ * and displays success/error toasts for those actions.
  *
  * @param autoCreate - If true, opens the Create Group dialog when the component mounts
  * @returns A React element that renders the groups management interface
@@ -60,12 +77,13 @@ export function GroupsManager({
 	readOnly = false,
 }: GroupsManagerProps) {
 	const [createOpen, setCreateOpen] = useState(readOnly ? false : autoCreate);
+	const [createName, setCreateName] = useState("");
+	const [createParentId, setCreateParentId] = useState<string | null>(null);
+
 	const [editOpen, setEditOpen] = useState(false);
-	const [editingGroup, setEditingGroup] = useState<{
-		id: string;
-		name: string;
-	} | null>(null);
-	const [groupName, setGroupName] = useState("");
+	const [editingGroup, setEditingGroup] = useState<GroupRecord | null>(null);
+	const [editName, setEditName] = useState("");
+	const [editParentId, setEditParentId] = useState<string | null>(null);
 
 	const queryClient = useQueryClient();
 
@@ -73,22 +91,29 @@ export function GroupsManager({
 		...orpc.monitors.listGroups.queryOptions(),
 	});
 
+	const groupPaths = buildGroupPaths(groups as GroupRecord[] | undefined);
+
 	const { mutate: createGroup, isPending: isCreating } = useMutation({
-		mutationFn: (name: string) => client.monitors.createGroup({ name }),
+		mutationFn: (input: { name: string; parentId: string | null }) =>
+			client.monitors.createGroup(input),
 		onSuccess: () => {
 			sileo.success({ title: "Group created" });
 			queryClient.invalidateQueries({
 				queryKey: orpc.monitors.listGroups.key(),
 			});
 			setCreateOpen(false);
-			setGroupName("");
+			setCreateName("");
+			setCreateParentId(null);
 		},
 		onError: () => sileo.error({ title: "Failed to create group" }),
 	});
 
 	const { mutate: updateGroup, isPending: isUpdating } = useMutation({
-		mutationFn: ({ id, name }: { id: string; name: string }) =>
-			client.monitors.updateGroup({ id, name }),
+		mutationFn: (input: {
+			id: string;
+			name: string;
+			parentId: string | null;
+		}) => client.monitors.updateGroup(input),
 		onSuccess: () => {
 			sileo.success({ title: "Group updated" });
 			queryClient.invalidateQueries({
@@ -97,7 +122,8 @@ export function GroupsManager({
 			queryClient.invalidateQueries({ queryKey: orpc.monitors.list.key() });
 			setEditOpen(false);
 			setEditingGroup(null);
-			setGroupName("");
+			setEditName("");
+			setEditParentId(null);
 		},
 		onError: () => sileo.error({ title: "Failed to update group" }),
 	});
@@ -114,6 +140,34 @@ export function GroupsManager({
 		onError: () => sileo.error({ title: "Failed to delete group" }),
 	});
 
+	const submitCreate = () => {
+		const name = createName.trim();
+		if (name) {
+			createGroup({ name, parentId: createParentId });
+		}
+	};
+
+	const submitEdit = () => {
+		const name = editName.trim();
+		if (name && editingGroup) {
+			updateGroup({ id: editingGroup.id, name, parentId: editParentId });
+		}
+	};
+
+	const openEdit = (group: GroupRecord) => {
+		setEditingGroup(group);
+		setEditName(group.name);
+		setEditParentId(group.parentId ?? null);
+		setEditOpen(true);
+	};
+
+	const invalidParentIds = editingGroup
+		? getGroupAndDescendantIds(
+				editingGroup.id,
+				groups as GroupRecord[] | undefined,
+			)
+		: new Set<string>();
+
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
@@ -128,7 +182,8 @@ export function GroupsManager({
 							<DialogHeader>
 								<DialogTitle>Create Group</DialogTitle>
 								<DialogDescription>
-									Create a new group to organize your monitors.
+									Create a new group to organize your monitors. Nest it under
+									another group to build a folder structure.
 								</DialogDescription>
 							</DialogHeader>
 							<DialogPanel>
@@ -138,14 +193,41 @@ export function GroupsManager({
 										<Input
 											id="group-name"
 											placeholder="Production, Staging, etc."
-											value={groupName}
-											onChange={(e) => setGroupName(e.target.value)}
+											value={createName}
+											onChange={(e) => setCreateName(e.target.value)}
 											onKeyDown={(e) => {
-												if (e.key === "Enter" && groupName.trim()) {
-													createGroup(groupName.trim());
+												if (e.key === "Enter") {
+													submitCreate();
 												}
 											}}
 										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="group-parent">Parent group</Label>
+										<Select
+											value={createParentId ?? NO_PARENT_VALUE}
+											onValueChange={(value) =>
+												setCreateParentId(
+													value === NO_PARENT_VALUE ? null : value,
+												)
+											}
+										>
+											<SelectTrigger id="group-parent" className="w-full">
+												<SelectValue placeholder="No parent (top level)" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={NO_PARENT_VALUE}>
+													No parent (top level)
+												</SelectItem>
+												{groupPaths.map(({ group, path, depth }) => (
+													<SelectItem key={group.id} value={group.id}>
+														<span style={{ paddingLeft: depth * 12 }}>
+															{path}
+														</span>
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
 									</div>
 								</div>
 							</DialogPanel>
@@ -154,10 +236,8 @@ export function GroupsManager({
 									Cancel
 								</DialogClose>
 								<Button
-									onClick={() =>
-										groupName.trim() && createGroup(groupName.trim())
-									}
-									disabled={!groupName.trim() || isCreating}
+									onClick={submitCreate}
+									disabled={!createName.trim() || isCreating}
 								>
 									Create
 								</Button>
@@ -168,10 +248,11 @@ export function GroupsManager({
 			</div>
 
 			<div className="space-y-2">
-				{groups?.map((group) => (
+				{groupPaths.map(({ group, depth }) => (
 					<div
 						key={group.id}
 						className="flex items-center justify-between rounded-md border bg-card p-3"
+						style={{ marginLeft: depth * 16 }}
 					>
 						<div className="flex items-center gap-2">
 							<Folder className="h-4 w-4 text-muted-foreground" />
@@ -187,13 +268,7 @@ export function GroupsManager({
 									}
 								/>
 								<DropdownMenuContent align="end">
-									<DropdownMenuItem
-										onClick={() => {
-											setEditingGroup(group);
-											setGroupName(group.name);
-											setEditOpen(true);
-										}}
-									>
+									<DropdownMenuItem onClick={() => openEdit(group)}>
 										<Pencil className="mr-2 h-4 w-4" />
 										Edit
 									</DropdownMenuItem>
@@ -213,8 +288,9 @@ export function GroupsManager({
 											<AlertDialogHeader>
 												<AlertDialogTitle>Delete Group</AlertDialogTitle>
 												<AlertDialogDescription>
-													Are you sure you want to delete this group? Monitors
-													in this group will not be deleted.
+													Are you sure you want to delete this group? Any
+													subgroups will move up to its parent, and monitors in
+													this group will not be deleted.
 												</AlertDialogDescription>
 											</AlertDialogHeader>
 											<AlertDialogFooter>
@@ -234,7 +310,7 @@ export function GroupsManager({
 						)}
 					</div>
 				))}
-				{(!groups || groups.length === 0) && (
+				{groupPaths.length === 0 && (
 					<p className="py-4 text-center text-muted-foreground text-sm">
 						{readOnly
 							? "No groups have been created yet."
@@ -248,7 +324,9 @@ export function GroupsManager({
 					<DialogPopup className="sm:max-w-[425px]">
 						<DialogHeader>
 							<DialogTitle>Edit Group</DialogTitle>
-							<DialogDescription>Update the group name.</DialogDescription>
+							<DialogDescription>
+								Update the group name or move it under another group.
+							</DialogDescription>
 						</DialogHeader>
 						<DialogPanel>
 							<div className="space-y-4">
@@ -256,21 +334,41 @@ export function GroupsManager({
 									<Label htmlFor="edit-group-name">Group Name</Label>
 									<Input
 										id="edit-group-name"
-										value={groupName}
-										onChange={(e) => setGroupName(e.target.value)}
+										value={editName}
+										onChange={(e) => setEditName(e.target.value)}
 										onKeyDown={(e) => {
-											if (
-												e.key === "Enter" &&
-												groupName.trim() &&
-												editingGroup
-											) {
-												updateGroup({
-													id: editingGroup.id,
-													name: groupName.trim(),
-												});
+											if (e.key === "Enter") {
+												submitEdit();
 											}
 										}}
 									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="edit-group-parent">Parent group</Label>
+									<Select
+										value={editParentId ?? NO_PARENT_VALUE}
+										onValueChange={(value) =>
+											setEditParentId(value === NO_PARENT_VALUE ? null : value)
+										}
+									>
+										<SelectTrigger id="edit-group-parent" className="w-full">
+											<SelectValue placeholder="No parent (top level)" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={NO_PARENT_VALUE}>
+												No parent (top level)
+											</SelectItem>
+											{groupPaths
+												.filter(({ group }) => !invalidParentIds.has(group.id))
+												.map(({ group, path, depth }) => (
+													<SelectItem key={group.id} value={group.id}>
+														<span style={{ paddingLeft: depth * 12 }}>
+															{path}
+														</span>
+													</SelectItem>
+												))}
+										</SelectContent>
+									</Select>
 								</div>
 							</div>
 						</DialogPanel>
@@ -279,12 +377,8 @@ export function GroupsManager({
 								Cancel
 							</DialogClose>
 							<Button
-								onClick={() =>
-									editingGroup &&
-									groupName.trim() &&
-									updateGroup({ id: editingGroup.id, name: groupName.trim() })
-								}
-								disabled={!groupName.trim() || isUpdating}
+								onClick={submitEdit}
+								disabled={!editName.trim() || isUpdating}
 							>
 								Update
 							</Button>

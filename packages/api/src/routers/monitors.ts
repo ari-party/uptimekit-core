@@ -203,6 +203,78 @@ async function resolveNotificationIdsForCreate(input: {
 	});
 }
 
+async function assertGroupForOrganization(input: {
+	groupId: string;
+	organizationId: string;
+}) {
+	const group = await db.query.monitorGroup.findFirst({
+		where: eq(monitorGroup.id, input.groupId),
+	});
+
+	if (!group || group.organizationId !== input.organizationId) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "The selected group does not exist.",
+		});
+	}
+
+	return group;
+}
+
+async function getOrganizationGroups(organizationId: string) {
+	return db
+		.select({ id: monitorGroup.id, parentId: monitorGroup.parentId })
+		.from(monitorGroup)
+		.where(eq(monitorGroup.organizationId, organizationId));
+}
+
+function collectGroupAndDescendantIds(
+	rootId: string,
+	groups: { id: string; parentId: string | null }[],
+) {
+	const childrenByParent = new Map<string, string[]>();
+	for (const group of groups) {
+		if (!group.parentId) continue;
+		const siblings = childrenByParent.get(group.parentId) ?? [];
+		siblings.push(group.id);
+		childrenByParent.set(group.parentId, siblings);
+	}
+
+	const result: string[] = [];
+	const stack = [rootId];
+	while (stack.length > 0) {
+		const current = stack.pop()!;
+		result.push(current);
+		const children = childrenByParent.get(current);
+		if (children) {
+			stack.push(...children);
+		}
+	}
+
+	return result;
+}
+
+function assertNoGroupCycle(input: {
+	groupId: string;
+	parentId: string;
+	groups: { id: string; parentId: string | null }[];
+}) {
+	if (input.groupId === input.parentId) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "A group cannot be its own parent.",
+		});
+	}
+
+	const descendantIds = collectGroupAndDescendantIds(
+		input.groupId,
+		input.groups,
+	);
+	if (descendantIds.includes(input.parentId)) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "A group cannot be moved into one of its own subgroups.",
+		});
+	}
+}
+
 export const monitorsRouter = {
 	list: protectedProcedure
 		.input(
@@ -252,7 +324,13 @@ export const monitorsRouter = {
 			}
 
 			if (input?.groupId) {
-				filters.push(eq(monitor.groupId, input.groupId));
+				const groupIds = collectGroupAndDescendantIds(
+					input.groupId,
+					await getOrganizationGroups(
+						context.session.session.activeOrganizationId!,
+					),
+				);
+				filters.push(inArray(monitor.groupId, groupIds));
 			}
 
 			if (input?.tagId) {
@@ -428,7 +506,7 @@ export const monitorsRouter = {
 						context.session.session.activeOrganizationId!,
 					),
 				)
-				.orderBy(desc(monitorGroup.createdAt));
+				.orderBy(monitorGroup.name);
 			return groups;
 		}),
 
@@ -440,14 +518,26 @@ export const monitorsRouter = {
 			summary: "Create monitor group",
 			description: "Create a new group for organizing monitors.",
 		})
-		.input(z.object({ name: z.string().min(1) }))
+		.input(
+			z.object({ name: z.string().min(1), parentId: z.string().nullish() }),
+		)
 		.handler(async ({ input, context }) => {
+			const organizationId = context.session.session.activeOrganizationId!;
+
+			if (input.parentId) {
+				await assertGroupForOrganization({
+					groupId: input.parentId,
+					organizationId,
+				});
+			}
+
 			const [newGroup] = await db
 				.insert(monitorGroup)
 				.values({
 					id: crypto.randomUUID(),
 					name: input.name,
-					organizationId: context.session.session.activeOrganizationId!,
+					parentId: input.parentId ?? null,
+					organizationId,
 				})
 				.returning();
 			return newGroup;
@@ -478,6 +568,13 @@ export const monitorsRouter = {
 		)
 		.handler(async ({ input, context }) => {
 			const organizationId = context.session.session.activeOrganizationId!;
+
+			if (input.groupId) {
+				await assertGroupForOrganization({
+					groupId: input.groupId,
+					organizationId,
+				});
+			}
 
 			await enforceMonitorQuotaOrThrow({
 				organizationId,
@@ -709,6 +806,13 @@ export const monitorsRouter = {
 				existing.organizationId !== context.session.session.activeOrganizationId
 			) {
 				throw new ORPCError("NOT_FOUND");
+			}
+
+			if (input.groupId) {
+				await assertGroupForOrganization({
+					groupId: input.groupId,
+					organizationId: existing.organizationId,
+				});
 			}
 
 			await enforceMonitorQuotaOrThrow({
@@ -1204,22 +1308,47 @@ export const monitorsRouter = {
 			summary: "Update monitor group",
 			description: "Update the name of an existing monitor group.",
 		})
-		.input(z.object({ id: z.string(), name: z.string().min(1) }))
+		.input(
+			z.object({
+				id: z.string(),
+				name: z.string().min(1).optional(),
+				parentId: z.string().nullish(),
+			}),
+		)
 		.handler(async ({ input, context }) => {
+			const organizationId = context.session.session.activeOrganizationId;
 			const existing = await db.query.monitorGroup.findFirst({
 				where: eq(monitorGroup.id, input.id),
 			});
 
-			if (
-				!existing ||
-				existing.organizationId !== context.session.session.activeOrganizationId
-			) {
+			if (!existing || existing.organizationId !== organizationId) {
 				throw new ORPCError("NOT_FOUND");
+			}
+
+			const updates: { name?: string; parentId?: string | null } = {};
+
+			if (input.name !== undefined) {
+				updates.name = input.name;
+			}
+
+			if (input.parentId !== undefined) {
+				if (input.parentId) {
+					await assertGroupForOrganization({
+						groupId: input.parentId,
+						organizationId: existing.organizationId,
+					});
+					assertNoGroupCycle({
+						groupId: input.id,
+						parentId: input.parentId,
+						groups: await getOrganizationGroups(existing.organizationId),
+					});
+				}
+				updates.parentId = input.parentId ?? null;
 			}
 
 			const [updated] = await db
 				.update(monitorGroup)
-				.set({ name: input.name })
+				.set(updates)
 				.where(eq(monitorGroup.id, input.id))
 				.returning();
 
@@ -1233,7 +1362,7 @@ export const monitorsRouter = {
 			tags: ["Monitor Management"],
 			summary: "Delete monitor group",
 			description:
-				"Delete a monitor group. Monitors in this group will have their groupId set to null.",
+				"Delete a monitor group. Child groups are promoted to the deleted group's parent, and monitors in this group have their groupId set to null.",
 		})
 		.input(z.object({ id: z.string() }))
 		.handler(async ({ input, context }) => {
@@ -1248,7 +1377,15 @@ export const monitorsRouter = {
 				throw new ORPCError("NOT_FOUND");
 			}
 
-			await db.delete(monitorGroup).where(eq(monitorGroup.id, input.id));
+			await db.transaction(async (tx) => {
+				await tx
+					.update(monitorGroup)
+					.set({ parentId: existing.parentId })
+					.where(eq(monitorGroup.parentId, input.id));
+
+				await tx.delete(monitorGroup).where(eq(monitorGroup.id, input.id));
+			});
+
 			return { success: true };
 		}),
 

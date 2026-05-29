@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
 	Combobox,
 	ComboboxChip,
@@ -13,10 +14,13 @@ import {
 	ComboboxPopup,
 	ComboboxValue,
 } from "@/components/ui/combobox";
+import { orpc } from "@/utils/orpc";
+import { buildGroupPaths } from "./group-tree";
 
 export interface MonitorGroupOption {
 	id: string;
 	name: string;
+	parentId?: string | null;
 }
 
 export interface GroupedMonitorOption {
@@ -25,10 +29,16 @@ export interface GroupedMonitorOption {
 	group?: MonitorGroupOption | null;
 }
 
-export function groupMonitorOptions(monitors: GroupedMonitorOption[]) {
+export function groupMonitorOptions(
+	monitors: GroupedMonitorOption[],
+	groupPaths?: Map<string, string>,
+) {
 	const groups = monitors.reduce(
 		(acc, monitor) => {
-			const groupName = monitor.group?.name || "Ungrouped";
+			const groupName =
+				(monitor.group &&
+					(groupPaths?.get(monitor.group.id) ?? monitor.group.name)) ||
+				"Ungrouped";
 			if (!acc[groupName]) {
 				acc[groupName] = [];
 			}
@@ -72,7 +82,13 @@ export function GroupedMonitorCombobox({
 	placeholder,
 	value,
 }: GroupedMonitorComboboxProps) {
-	const groupedMonitors = groupMonitorOptions(monitors);
+	const { data: groups } = useQuery({
+		...orpc.monitors.listGroups.queryOptions(),
+	});
+	const groupPaths = new Map(
+		buildGroupPaths(groups).map(({ group, path }) => [group.id, path]),
+	);
+	const groupedMonitors = groupMonitorOptions(monitors, groupPaths);
 
 	return (
 		<Combobox

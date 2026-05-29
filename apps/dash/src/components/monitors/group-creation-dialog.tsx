@@ -1,7 +1,7 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { sileo } from "sileo";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,12 +16,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { client, orpc } from "@/utils/orpc";
+import { buildGroupPaths } from "./group-tree";
+
+const NO_PARENT_VALUE = "__none__";
+
+type CreatedGroup = Awaited<ReturnType<typeof client.monitors.createGroup>>;
 
 interface GroupCreationDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onCreated?: () => void;
+	defaultParentId?: string | null;
+	onCreated?: (group: CreatedGroup) => void;
 }
 
 /**
@@ -38,25 +51,52 @@ interface GroupCreationDialogProps {
 export function GroupCreationDialog({
 	open,
 	onOpenChange,
+	defaultParentId,
 	onCreated,
 }: GroupCreationDialogProps) {
 	const [groupName, setGroupName] = useState("");
+	const [parentId, setParentId] = useState<string | null>(
+		defaultParentId ?? null,
+	);
 
 	const queryClient = useQueryClient();
 
+	const { data: groups } = useQuery({
+		...orpc.monitors.listGroups.queryOptions(),
+	});
+
+	useEffect(() => {
+		if (open) {
+			setParentId(defaultParentId ?? null);
+		}
+	}, [open, defaultParentId]);
+
+	const groupOptions = buildGroupPaths(groups);
+
 	const { mutate: createGroup, isPending: isCreating } = useMutation({
-		mutationFn: (name: string) => client.monitors.createGroup({ name }),
-		onSuccess: () => {
+		mutationFn: (input: { name: string; parentId: string | null }) =>
+			client.monitors.createGroup(input),
+		onSuccess: (group) => {
 			sileo.success({ title: "Group created" });
 			queryClient.invalidateQueries({
 				queryKey: orpc.monitors.listGroups.key(),
 			});
 			onOpenChange(false);
 			setGroupName("");
-			onCreated?.();
+			setParentId(null);
+			if (group) {
+				onCreated?.(group);
+			}
 		},
 		onError: () => sileo.error({ title: "Failed to create group" }),
 	});
+
+	const submit = () => {
+		const name = groupName.trim();
+		if (name) {
+			createGroup({ name, parentId });
+		}
+	};
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,7 +104,8 @@ export function GroupCreationDialog({
 				<DialogHeader>
 					<DialogTitle>Create Group</DialogTitle>
 					<DialogDescription>
-						Create a new group to organize your monitors.
+						Create a new group to organize your monitors. Nest it under another
+						group to build a folder structure.
 					</DialogDescription>
 				</DialogHeader>
 				<DialogPanel className="space-y-4">
@@ -76,19 +117,39 @@ export function GroupCreationDialog({
 							value={groupName}
 							onChange={(e) => setGroupName(e.target.value)}
 							onKeyDown={(e) => {
-								if (e.key === "Enter" && groupName.trim()) {
-									createGroup(groupName.trim());
+								if (e.key === "Enter") {
+									submit();
 								}
 							}}
 						/>
 					</div>
+					<div className="space-y-2">
+						<Label htmlFor="group-parent">Parent group</Label>
+						<Select
+							value={parentId ?? NO_PARENT_VALUE}
+							onValueChange={(value) =>
+								setParentId(value === NO_PARENT_VALUE ? null : value)
+							}
+						>
+							<SelectTrigger id="group-parent" className="w-full">
+								<SelectValue placeholder="No parent (top level)" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={NO_PARENT_VALUE}>
+									No parent (top level)
+								</SelectItem>
+								{groupOptions.map(({ group, path, depth }) => (
+									<SelectItem key={group.id} value={group.id}>
+										<span style={{ paddingLeft: depth * 12 }}>{path}</span>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
 				</DialogPanel>
 				<DialogFooter>
 					<DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
-					<Button
-						onClick={() => groupName.trim() && createGroup(groupName.trim())}
-						disabled={!groupName.trim() || isCreating}
-					>
+					<Button onClick={submit} disabled={!groupName.trim() || isCreating}>
 						Create
 					</Button>
 				</DialogFooter>

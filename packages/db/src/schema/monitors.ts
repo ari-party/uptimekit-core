@@ -19,6 +19,9 @@ export const monitorGroup = pgTable(
 		organizationId: text("organization_id")
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
+		parentId: text("parent_id").references((): any => monitorGroup.id, {
+			onDelete: "set null",
+		}),
 		name: text("name").notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
@@ -26,7 +29,10 @@ export const monitorGroup = pgTable(
 			.$onUpdate(() => new Date())
 			.notNull(),
 	},
-	(table) => [index("monitor_group_organization_idx").on(table.organizationId)],
+	(table) => [
+		index("monitor_group_organization_idx").on(table.organizationId),
+		index("monitor_group_parent_idx").on(table.parentId),
+	],
 );
 
 export const monitor = pgTable(
@@ -92,6 +98,14 @@ export const monitorGroupRelations = relations(
 		organization: one(organization, {
 			fields: [monitorGroup.organizationId],
 			references: [organization.id],
+		}),
+		parent: one(monitorGroup, {
+			fields: [monitorGroup.parentId],
+			references: [monitorGroup.id],
+			relationName: "monitorGroupHierarchy",
+		}),
+		children: many(monitorGroup, {
+			relationName: "monitorGroupHierarchy",
 		}),
 		monitors: many(monitor),
 	}),
