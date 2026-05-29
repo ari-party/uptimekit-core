@@ -137,7 +137,7 @@ export function ImportWizard() {
 	const canPreview = Boolean(
 		organizationId && sourceForm?.isComplete(connection),
 	);
-	const canCommit = selectedMonitors.length > 0;
+	const canCommit = selectedMonitors.length > 0 && !exceedsQuota;
 
 	const orgItems = (orgs?.items ?? []) as { id: string; name: string }[];
 	const selectedOrgName = orgItems.find((o) => o.id === organizationId)?.name;
