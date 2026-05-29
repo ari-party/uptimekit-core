@@ -48,9 +48,13 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { client, orpc } from "@/utils/orpc";
-import { buildGroupPaths, getGroupAndDescendantIds } from "./group-tree";
-
-const NO_PARENT_VALUE = "__none__";
+import {
+	buildGroupPaths,
+	getGroupAndDescendantIds,
+	NO_PARENT_LABEL,
+	NO_PARENT_VALUE,
+	resolveGroupPathLabel,
+} from "./group-tree";
 
 interface GroupRecord {
 	id: string;
@@ -168,6 +172,9 @@ export function GroupsManager({
 			)
 		: new Set<string>();
 
+	const parentLabel = (value: string) =>
+		resolveGroupPathLabel(value, groupPaths);
+
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
@@ -213,11 +220,13 @@ export function GroupsManager({
 											}
 										>
 											<SelectTrigger id="group-parent" className="w-full">
-												<SelectValue placeholder="No parent (top level)" />
+												<SelectValue placeholder={NO_PARENT_LABEL}>
+													{(value) => parentLabel(value as string)}
+												</SelectValue>
 											</SelectTrigger>
 											<SelectContent>
 												<SelectItem value={NO_PARENT_VALUE}>
-													No parent (top level)
+													{NO_PARENT_LABEL}
 												</SelectItem>
 												{groupPaths.map(({ group, path, depth }) => (
 													<SelectItem key={group.id} value={group.id}>
@@ -352,11 +361,13 @@ export function GroupsManager({
 										}
 									>
 										<SelectTrigger id="edit-group-parent" className="w-full">
-											<SelectValue placeholder="No parent (top level)" />
+											<SelectValue placeholder={NO_PARENT_LABEL}>
+												{(value) => parentLabel(value as string)}
+											</SelectValue>
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value={NO_PARENT_VALUE}>
-												No parent (top level)
+												{NO_PARENT_LABEL}
 											</SelectItem>
 											{groupPaths
 												.filter(({ group }) => !invalidParentIds.has(group.id))

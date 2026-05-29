@@ -24,9 +24,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { client, orpc } from "@/utils/orpc";
-import { buildGroupPaths } from "./group-tree";
-
-const NO_PARENT_VALUE = "__none__";
+import {
+	buildGroupPaths,
+	NO_PARENT_LABEL,
+	NO_PARENT_VALUE,
+	resolveGroupPathLabel,
+} from "./group-tree";
 
 type CreatedGroup = Awaited<ReturnType<typeof client.monitors.createGroup>>;
 
@@ -132,11 +135,15 @@ export function GroupCreationDialog({
 							}
 						>
 							<SelectTrigger id="group-parent" className="w-full">
-								<SelectValue placeholder="No parent (top level)" />
+								<SelectValue placeholder={NO_PARENT_LABEL}>
+									{(value) =>
+										resolveGroupPathLabel(value as string, groupOptions)
+									}
+								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value={NO_PARENT_VALUE}>
-									No parent (top level)
+									{NO_PARENT_LABEL}
 								</SelectItem>
 								{groupOptions.map(({ group, path, depth }) => (
 									<SelectItem key={group.id} value={group.id}>
