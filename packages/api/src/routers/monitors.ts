@@ -28,6 +28,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, writeProcedure } from "../index";
+import { insertMonitor } from "../lib/insert-monitor";
 import {
 	monitorTimingSchema,
 	withMonitorTimingRelations,
@@ -600,56 +601,29 @@ export const monitorsRouter = {
 				notificationIds: input.notificationIds,
 			});
 
-			const newMonitor = await db.transaction(async (tx) => {
-				const [createdMonitor] = await tx
-					.insert(monitor)
-					.values({
-						id: crypto.randomUUID(),
-						name: input.name,
-						organizationId,
-						type: input.type,
-						interval: input.interval,
-						timeout: input.timeout,
-						retries: input.retries,
-						retryInterval: input.retryInterval,
-						config: input.config,
-						locations: selectedWorkers.map(
-							(selectedWorker) => selectedWorker.location,
-						),
-						workerIds: input.workerIds,
-						groupId: input.groupId,
-						active: true,
-						pauseReason: null,
-						incidentPendingDuration: input.incidentPendingDuration,
-						incidentRecoveryDuration: input.incidentRecoveryDuration,
-						publishIncidentToStatusPage: input.publishIncidentToStatusPage,
-					})
-					.returning();
-
-				if (!createdMonitor) {
-					throw new ORPCError("INTERNAL_SERVER_ERROR");
-				}
-
-				if (input.tags && input.tags.length > 0) {
-					await tx.insert(monitorTag).values(
-						input.tags.map((tagId) => ({
-							monitorId: createdMonitor.id,
-							tagId,
-						})),
-					);
-				}
-
-				if (notificationIds.length > 0) {
-					await tx.insert(monitorNotification).values(
-						notificationIds.map((notificationId) => ({
-							monitorId: createdMonitor.id,
-							integrationConfigId: notificationId,
-						})),
-					);
-				}
-
-				return createdMonitor;
-			});
+			const newMonitor = await db.transaction(async (tx) =>
+				insertMonitor(tx, {
+					organizationId,
+					name: input.name,
+					type: input.type,
+					interval: input.interval,
+					timeout: input.timeout,
+					retries: input.retries,
+					retryInterval: input.retryInterval,
+					config: input.config,
+					locations: selectedWorkers.map(
+						(selectedWorker) => selectedWorker.location,
+					),
+					workerIds: input.workerIds,
+					groupId: input.groupId ?? null,
+					active: true,
+					incidentPendingDuration: input.incidentPendingDuration,
+					incidentRecoveryDuration: input.incidentRecoveryDuration,
+					publishIncidentToStatusPage: input.publishIncidentToStatusPage,
+					tagIds: input.tags ?? [],
+					notificationIds,
+				}),
+			);
 
 			return newMonitor;
 		}),
