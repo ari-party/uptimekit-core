@@ -27,7 +27,7 @@ import { client, orpc } from "@/utils/orpc";
 import {
 	buildGroupPaths,
 	NO_PARENT_LABEL,
-	NO_PARENT_VALUE,
+	NONE_SELECT_VALUE,
 	resolveGroupPathLabel,
 } from "./group-tree";
 
@@ -129,9 +129,9 @@ export function GroupCreationDialog({
 					<div className="space-y-2">
 						<Label htmlFor="group-parent">Parent group</Label>
 						<Select
-							value={parentId ?? NO_PARENT_VALUE}
+							value={parentId ?? NONE_SELECT_VALUE}
 							onValueChange={(value) =>
-								setParentId(value === NO_PARENT_VALUE ? null : value)
+								setParentId(value === NONE_SELECT_VALUE ? null : value)
 							}
 						>
 							<SelectTrigger id="group-parent" className="w-full">
@@ -142,7 +142,7 @@ export function GroupCreationDialog({
 								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NO_PARENT_VALUE}>
+								<SelectItem value={NONE_SELECT_VALUE}>
 									{NO_PARENT_LABEL}
 								</SelectItem>
 								{groupOptions.map(({ group, path, depth }) => (

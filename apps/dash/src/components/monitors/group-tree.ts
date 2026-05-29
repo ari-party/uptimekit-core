@@ -18,15 +18,16 @@ export interface GroupTreeNode<T extends GroupNodeInput> {
 
 export const GROUP_PATH_SEPARATOR = " / ";
 
-export const NO_PARENT_VALUE = "__none__";
+export const NONE_SELECT_VALUE = "__none__";
 export const NO_PARENT_LABEL = "No parent (top level)";
+export const NO_GROUP_LABEL = "No group";
 
 export function resolveGroupPathLabel<T extends GroupNodeInput>(
 	value: string,
 	groupPaths: GroupWithPath<T>[],
 	fallback: string = NO_PARENT_LABEL,
 ): string {
-	if (value === NO_PARENT_VALUE) return fallback;
+	if (value === NONE_SELECT_VALUE) return fallback;
 	return groupPaths.find(({ group }) => group.id === value)?.path ?? fallback;
 }
 

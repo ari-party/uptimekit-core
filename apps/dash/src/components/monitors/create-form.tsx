@@ -72,12 +72,15 @@ import { getRegionInfo } from "@/lib/regions";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/utils/orpc";
 import { GroupCreationDialog } from "./group-creation-dialog";
-import { buildGroupPaths } from "./group-tree";
+import {
+	buildGroupPaths,
+	NO_GROUP_LABEL,
+	NONE_SELECT_VALUE,
+	resolveGroupPathLabel,
+} from "./group-tree";
 import { GroupsManager } from "./groups-manager";
 import { TagCreationDialog } from "./tag-creation-dialog";
 import { TagsManager } from "./tags-manager";
-
-const NO_GROUP_VALUE = "__none__";
 
 // --- Configuration Registry ---
 
@@ -1105,30 +1108,33 @@ export function CreateMonitorForm({
 										name="groupId"
 										render={({ field }) => {
 											const groupOptions = buildGroupPaths(groups);
-											const selectedGroup = groupOptions.find(
-												(g) => g.group.id === field.value,
-											);
 											return (
 												<FormItem>
 													<FormLabel>Group</FormLabel>
 													<Select
 														onValueChange={(val) =>
 															field.onChange(
-																val === NO_GROUP_VALUE ? null : val,
+																val === NONE_SELECT_VALUE ? null : val,
 															)
 														}
-														value={field.value || NO_GROUP_VALUE}
+														value={field.value || NONE_SELECT_VALUE}
 													>
 														<FormControl>
 															<SelectTrigger className="w-full">
-																<SelectValue placeholder="No group">
-																	{selectedGroup?.path ?? "No group"}
+																<SelectValue placeholder={NO_GROUP_LABEL}>
+																	{(value) =>
+																		resolveGroupPathLabel(
+																			value as string,
+																			groupOptions,
+																			NO_GROUP_LABEL,
+																		)
+																	}
 																</SelectValue>
 															</SelectTrigger>
 														</FormControl>
 														<SelectContent>
-															<SelectItem value={NO_GROUP_VALUE}>
-																No group
+															<SelectItem value={NONE_SELECT_VALUE}>
+																{NO_GROUP_LABEL}
 															</SelectItem>
 															{groupOptions.map(({ group, path, depth }) => (
 																<SelectItem key={group.id} value={group.id}>

@@ -52,7 +52,7 @@ import {
 	buildGroupPaths,
 	getGroupAndDescendantIds,
 	NO_PARENT_LABEL,
-	NO_PARENT_VALUE,
+	NONE_SELECT_VALUE,
 	resolveGroupPathLabel,
 } from "./group-tree";
 
@@ -212,10 +212,10 @@ export function GroupsManager({
 									<div className="space-y-2">
 										<Label htmlFor="group-parent">Parent group</Label>
 										<Select
-											value={createParentId ?? NO_PARENT_VALUE}
+											value={createParentId ?? NONE_SELECT_VALUE}
 											onValueChange={(value) =>
 												setCreateParentId(
-													value === NO_PARENT_VALUE ? null : value,
+													value === NONE_SELECT_VALUE ? null : value,
 												)
 											}
 										>
@@ -225,7 +225,7 @@ export function GroupsManager({
 												</SelectValue>
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value={NO_PARENT_VALUE}>
+												<SelectItem value={NONE_SELECT_VALUE}>
 													{NO_PARENT_LABEL}
 												</SelectItem>
 												{groupPaths.map(({ group, path, depth }) => (
@@ -355,9 +355,11 @@ export function GroupsManager({
 								<div className="space-y-2">
 									<Label htmlFor="edit-group-parent">Parent group</Label>
 									<Select
-										value={editParentId ?? NO_PARENT_VALUE}
+										value={editParentId ?? NONE_SELECT_VALUE}
 										onValueChange={(value) =>
-											setEditParentId(value === NO_PARENT_VALUE ? null : value)
+											setEditParentId(
+												value === NONE_SELECT_VALUE ? null : value,
+											)
 										}
 									>
 										<SelectTrigger id="edit-group-parent" className="w-full">
@@ -366,7 +368,7 @@ export function GroupsManager({
 											</SelectValue>
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value={NO_PARENT_VALUE}>
+											<SelectItem value={NONE_SELECT_VALUE}>
 												{NO_PARENT_LABEL}
 											</SelectItem>
 											{groupPaths
