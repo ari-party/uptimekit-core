@@ -298,67 +298,65 @@ export function MonitorsTable() {
 			)}
 			onClick={() => router.push(`/monitors/${monitor.id}`)}
 		>
-			<TableCell
-				className="w-[50px]"
-				style={{ paddingLeft: 24 + (depth + 1) * 16 }}
-			>
-				<div
-					className={cn(
-						"h-2.5 w-2.5 rounded-full shadow-sm",
-						monitor.status === "up" && "bg-emerald-500 shadow-emerald-500/20",
-						monitor.status === "down" && "bg-red-500 shadow-red-500/20",
-						monitor.status === "degraded" && "bg-amber-500 shadow-amber-500/20",
-						monitor.status === "maintenance" &&
-							"bg-blue-500 shadow-blue-500/20",
-						monitor.status === "pending" && "bg-zinc-500 shadow-zinc-500/20",
-					)}
-				/>
-			</TableCell>
-			<TableCell>
-				<div className="grid gap-1">
-					<span className="flex items-center gap-2 font-semibold leading-none transition-colors group-hover:text-primary">
-						{monitor.name}
-						{!monitor.active && (
-							<span className="rounded-full bg-muted px-2 py-0.5 font-medium text-[10px] text-muted-foreground">
-								{getPauseLabel(monitor.pauseReason)}
-							</span>
+			<TableCell style={{ paddingLeft: 24 + (depth + 1) * 16 }}>
+				<div className="flex items-center gap-3">
+					<div
+						className={cn(
+							"h-2.5 w-2.5 shrink-0 rounded-full shadow-sm",
+							monitor.status === "up" && "bg-emerald-500 shadow-emerald-500/20",
+							monitor.status === "down" && "bg-red-500 shadow-red-500/20",
+							monitor.status === "degraded" &&
+								"bg-amber-500 shadow-amber-500/20",
+							monitor.status === "maintenance" &&
+								"bg-blue-500 shadow-blue-500/20",
+							monitor.status === "pending" && "bg-zinc-500 shadow-zinc-500/20",
 						)}
-						{monitor.tags && monitor.tags.length > 0 && (
-							<div className="flex items-center gap-1">
-								{monitor.tags.map((tag) => (
-									<span
-										key={tag.id}
-										className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[10px]"
-										style={{
-											backgroundColor: `${tag.color}20`,
-											color: tag.color,
-										}}
-									>
-										{tag.name}
-									</span>
-								))}
-							</div>
-						)}
-					</span>
-					<div className="flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
-						<span
-							className={cn(
-								monitor.status === "up" && "text-emerald-500",
-								monitor.status === "down" && "text-red-500",
-								monitor.status === "degraded" && "text-amber-500",
-								monitor.status === "maintenance" && "text-blue-500",
-								monitor.status === "pending" && "text-zinc-500",
+					/>
+					<div className="grid gap-1">
+						<span className="flex items-center gap-2 font-semibold leading-none transition-colors group-hover:text-primary">
+							{monitor.name}
+							{!monitor.active && (
+								<span className="rounded-full bg-muted px-2 py-0.5 font-medium text-[10px] text-muted-foreground">
+									{getPauseLabel(monitor.pauseReason)}
+								</span>
 							)}
-						>
-							{monitor.statusText}
+							{monitor.tags && monitor.tags.length > 0 && (
+								<div className="flex items-center gap-1">
+									{monitor.tags.map((tag) => (
+										<span
+											key={tag.id}
+											className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-[10px]"
+											style={{
+												backgroundColor: `${tag.color}20`,
+												color: tag.color,
+											}}
+										>
+											{tag.name}
+										</span>
+									))}
+								</div>
+							)}
 						</span>
-						<span>·</span>
-						<span>{monitor.duration}</span>
-						<span>·</span>
-						<span className="underline decoration-muted-foreground/50 decoration-dashed underline-offset-2 transition-colors hover:text-foreground">
-							Used on {monitor.usedOn} status page
-							{monitor.usedOn !== 1 ? "s" : ""}
-						</span>
+						<div className="flex items-center gap-1.5 font-medium text-muted-foreground text-xs">
+							<span
+								className={cn(
+									monitor.status === "up" && "text-emerald-500",
+									monitor.status === "down" && "text-red-500",
+									monitor.status === "degraded" && "text-amber-500",
+									monitor.status === "maintenance" && "text-blue-500",
+									monitor.status === "pending" && "text-zinc-500",
+								)}
+							>
+								{monitor.statusText}
+							</span>
+							<span>·</span>
+							<span>{monitor.duration}</span>
+							<span>·</span>
+							<span className="underline decoration-muted-foreground/50 decoration-dashed underline-offset-2 transition-colors hover:text-foreground">
+								Used on {monitor.usedOn} status page
+								{monitor.usedOn !== 1 ? "s" : ""}
+							</span>
+						</div>
 					</div>
 				</div>
 			</TableCell>
@@ -401,7 +399,7 @@ export function MonitorsTable() {
 				className="cursor-pointer border-b bg-muted/10 hover:bg-muted/20"
 				onClick={() => toggleGroup(node.group.id)}
 			>
-				<TableCell colSpan={6} className="py-3">
+				<TableCell colSpan={5} className="py-3">
 					<div
 						className="flex select-none items-center gap-2 font-medium text-sm"
 						style={{ marginLeft: node.depth * 16 }}
@@ -833,13 +831,13 @@ export function MonitorsTable() {
 					<TableBody>
 						{isLoading ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
+								<TableCell colSpan={5} className="h-24 text-center">
 									<Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
 								</TableCell>
 							</TableRow>
 						) : !tableData || tableData.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
+								<TableCell colSpan={5} className="h-24 text-center">
 									<div className="flex flex-col items-center justify-center gap-2 py-6">
 										<div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/50">
 											<PlayCircle className="h-6 w-6 text-muted-foreground" />
@@ -879,7 +877,7 @@ export function MonitorsTable() {
 											className="cursor-pointer border-b bg-muted/10 hover:bg-muted/20"
 											onClick={() => toggleGroup("ungrouped")}
 										>
-											<TableCell colSpan={6} className="py-3">
+											<TableCell colSpan={5} className="py-3">
 												<div className="flex select-none items-center gap-2 font-medium text-sm">
 													<ChevronRight
 														className={cn(
