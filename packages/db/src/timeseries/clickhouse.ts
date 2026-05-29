@@ -447,13 +447,16 @@ export class ClickHouseDriver implements TimeSeriesDriver {
 			timestamp: string;
 		}>(
 			`
-				SELECT monitorId, latency, timestamp
+				SELECT monitorId, avg(latency) AS latency, max(timestamp) AS timestamp
 				FROM (
-					SELECT monitorId, latency, timestamp,
-						ROW_NUMBER() OVER (PARTITION BY monitorId ORDER BY timestamp DESC) as rn
+					SELECT monitorId, location, latency, timestamp,
+						ROW_NUMBER() OVER (
+							PARTITION BY monitorId, location ORDER BY timestamp DESC
+						) as rn
 					FROM uptimekit.monitor_events
 					WHERE monitorId IN ({ids:Array(String)})
 				) WHERE rn <= {limit:UInt32}
+				GROUP BY monitorId, rn
 				ORDER BY monitorId, timestamp ASC
 			`,
 			{ ids: monitorIds, limit: limitPerMonitor },

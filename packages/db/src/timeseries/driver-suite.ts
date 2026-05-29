@@ -501,6 +501,42 @@ export function defineDriverTests(
 					true,
 				);
 			});
+
+			it("averages latency across workers per round", async () => {
+				const driver = getDriver();
+				const monitorId = uid("sparkline-multi-worker");
+				const base = Date.now();
+
+				const rounds = 3;
+				const inserts = Array.from({ length: rounds }, (_, round) => [
+					{
+						id: crypto.randomUUID(),
+						monitorId,
+						status: "up",
+						latency: 100,
+						timestamp: new Date(base - round * 1000),
+						location: "worker-a",
+					},
+					{
+						id: crypto.randomUUID(),
+						monitorId,
+						status: "up",
+						latency: 300,
+						timestamp: new Date(base - round * 1000 - 100),
+						location: "worker-b",
+					},
+				]).flat();
+
+				await driver.insertMonitorEvents(inserts);
+
+				const recent = await driver.getRecentLatenciesByMonitor(
+					[monitorId],
+					10,
+				);
+
+				expect(recent).toHaveLength(rounds);
+				expect(recent.every((point) => point.latency === 200)).toBe(true);
+			});
 		});
 
 		describe("deletions", () => {

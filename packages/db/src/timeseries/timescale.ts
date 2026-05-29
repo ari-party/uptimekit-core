@@ -394,15 +394,18 @@ export class TimescaleDriver implements TimeSeriesDriver {
 		const rows = await sql<
 			{ monitor_id: string; latency: number; timestamp: Date }[]
 		>`
-			SELECT monitor_id, latency, timestamp
+			SELECT monitor_id, AVG(latency) AS latency, MAX(timestamp) AS timestamp
 			FROM (
-				SELECT monitor_id, latency, timestamp,
-					ROW_NUMBER() OVER (PARTITION BY monitor_id ORDER BY timestamp DESC) AS rn
+				SELECT monitor_id, location, latency, timestamp,
+					ROW_NUMBER() OVER (
+						PARTITION BY monitor_id, location ORDER BY timestamp DESC
+					) AS rn
 				FROM monitor_events
 				WHERE monitor_id = ANY(${monitorIds})
 			) sub
 			WHERE rn <= ${limitPerMonitor}
-			ORDER BY monitor_id, timestamp ASC
+			GROUP BY monitor_id, rn
+			ORDER BY monitor_id, MAX(timestamp) ASC
 		`;
 
 		return rows.map((r) => ({
