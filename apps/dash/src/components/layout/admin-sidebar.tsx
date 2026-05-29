@@ -6,6 +6,7 @@ import type * as React from "react";
 import {
 	BarChart3,
 	ChevronLeft,
+	Network,
 	Server,
 	Settings,
 	Shield,
@@ -50,6 +51,11 @@ const adminNav = [
 		title: "Organizations",
 		url: "/admin/organizations",
 		icon: Shield,
+	},
+	{
+		title: "Import",
+		url: "/admin/import",
+		icon: Network,
 	},
 	{
 		title: "Settings",

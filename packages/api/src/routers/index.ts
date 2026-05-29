@@ -1,5 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 import { configurationRouter } from "./configuration";
+import { importsRouter } from "./imports";
 import { incidentsRouter } from "./incidents";
 import { integrationsRouter } from "./integrations";
 import { maintenanceRouter } from "./maintenance";
@@ -11,6 +12,7 @@ import { usersRouter } from "./users";
 import { workersRouter } from "./workers";
 import "../pkg/integrations/service"; // Initialize integration service
 import "../pkg/subscribers/service"; // Initialize subscriber notification service
+import "../pkg/imports"; // Register import sources
 
 export const appRouter = {
 	workers: workersRouter,
@@ -23,6 +25,7 @@ export const appRouter = {
 	configuration: configurationRouter,
 	users: usersRouter,
 	organizations: organizationsRouter,
+	imports: importsRouter,
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
