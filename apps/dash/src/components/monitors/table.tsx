@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
 	parseAsBoolean,
-	parseAsInteger,
 	parseAsString,
 	parseAsStringEnum,
 	useQueryStates,
@@ -17,9 +16,7 @@ import {
 	ArrowRight,
 	Check,
 	ChevronDown,
-	ChevronLeftIcon,
 	ChevronRight,
-	ChevronRightIcon,
 	Filter,
 	Folder,
 	Loader2,
@@ -47,19 +44,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-	Pagination,
-	PaginationContent,
-	PaginationEllipsis,
-	PaginationItem,
-} from "@/components/ui/pagination";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/utils/orpc";
@@ -73,7 +57,9 @@ import {
 import { LatencySparkline } from "./latency-sparkline";
 import { TagCreationDialog } from "./tag-creation-dialog";
 
-const PAGE_SIZE_OPTIONS = ["10", "25", "50", "100"] as const;
+// Monitors load on one page (no pagination) so a group's members never split
+// across pages; beyond this the table shows a "first N of M" notice, not silence.
+const MONITOR_LIST_LIMIT = 1000;
 const MONITOR_STATUS_FILTERS = [
 	"up",
 	"down",
@@ -137,8 +123,6 @@ export function MonitorsTable() {
 		status: parseAsStringEnum([...MONITOR_STATUS_FILTERS]),
 		groupId: parseAsString,
 		tagId: parseAsString,
-		page: parseAsInteger.withDefault(1),
-		pageSize: parseAsStringEnum([...PAGE_SIZE_OPTIONS]).withDefault("25"),
 	});
 	const {
 		search,
@@ -147,10 +131,7 @@ export function MonitorsTable() {
 		status: statusFilter,
 		groupId: groupFilter,
 		tagId: tagFilter,
-		page,
-		pageSize: pageSizeParam,
 	} = filters;
-	const pageSize = Number(pageSizeParam);
 	const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
 		{},
 	);
@@ -168,7 +149,6 @@ export function MonitorsTable() {
 			if (searchInput !== search) {
 				void setFilters({
 					search: searchInput || null,
-					page: 1,
 				});
 			}
 		}, 500);
@@ -184,8 +164,8 @@ export function MonitorsTable() {
 				status: statusFilter ?? undefined,
 				groupId: groupFilter ?? undefined,
 				tagId: tagFilter ?? undefined,
-				limit: pageSize,
-				offset: (page - 1) * pageSize,
+				limit: MONITOR_LIST_LIMIT,
+				offset: 0,
 			},
 		}),
 		refetchInterval: 60_000,
@@ -211,8 +191,8 @@ export function MonitorsTable() {
 	});
 
 	const monitors = data?.items;
-	const total = data?.total || 0;
-	const totalPages = Math.ceil(total / pageSize);
+	const total = data?.total ?? 0;
+	const isCapped = total > MONITOR_LIST_LIMIT;
 
 	const tableData: (Monitor & { groupId?: string })[] =
 		monitors?.map((m) => ({
@@ -442,7 +422,6 @@ export function MonitorsTable() {
 			status: null,
 			groupId: null,
 			tagId: null,
-			page: 1,
 		});
 	};
 
@@ -524,7 +503,7 @@ export function MonitorsTable() {
 							</div>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ status: null, page: 1 });
+									void setFilters({ status: null });
 								}}
 								className="flex justify-between"
 							>
@@ -533,7 +512,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ status: "up", page: 1 });
+									void setFilters({ status: "up" });
 								}}
 								className="flex justify-between"
 							>
@@ -542,7 +521,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ status: "down", page: 1 });
+									void setFilters({ status: "down" });
 								}}
 								className="flex justify-between"
 							>
@@ -551,7 +530,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ status: "degraded", page: 1 });
+									void setFilters({ status: "degraded" });
 								}}
 								className="flex justify-between"
 							>
@@ -560,7 +539,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ status: "maintenance", page: 1 });
+									void setFilters({ status: "maintenance" });
 								}}
 								className="flex justify-between"
 							>
@@ -577,7 +556,7 @@ export function MonitorsTable() {
 							</div>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: null, page: 1 });
+									void setFilters({ type: null });
 								}}
 								className="flex justify-between"
 							>
@@ -586,7 +565,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: "http", page: 1 });
+									void setFilters({ type: "http" });
 								}}
 								className="flex justify-between"
 							>
@@ -595,7 +574,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: "ping", page: 1 });
+									void setFilters({ type: "ping" });
 								}}
 								className="flex justify-between"
 							>
@@ -604,7 +583,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: "tcp", page: 1 });
+									void setFilters({ type: "tcp" });
 								}}
 								className="flex justify-between"
 							>
@@ -614,7 +593,7 @@ export function MonitorsTable() {
 
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: "dns", page: 1 });
+									void setFilters({ type: "dns" });
 								}}
 								className="flex justify-between"
 							>
@@ -624,7 +603,7 @@ export function MonitorsTable() {
 
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ type: "keyword", page: 1 });
+									void setFilters({ type: "keyword" });
 								}}
 								className="flex justify-between"
 							>
@@ -639,7 +618,7 @@ export function MonitorsTable() {
 							</div>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ active: null, page: 1 });
+									void setFilters({ active: null });
 								}}
 								className="flex justify-between"
 							>
@@ -648,7 +627,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ active: true, page: 1 });
+									void setFilters({ active: true });
 								}}
 								className="flex justify-between"
 							>
@@ -657,7 +636,7 @@ export function MonitorsTable() {
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ active: false, page: 1 });
+									void setFilters({ active: false });
 								}}
 								className="flex justify-between"
 							>
@@ -684,7 +663,7 @@ export function MonitorsTable() {
 							</div>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ groupId: null, page: 1 });
+									void setFilters({ groupId: null });
 								}}
 								className="flex justify-between"
 							>
@@ -695,7 +674,7 @@ export function MonitorsTable() {
 								<DropdownMenuItem
 									key={group.id}
 									onClick={() => {
-										void setFilters({ groupId: group.id, page: 1 });
+										void setFilters({ groupId: group.id });
 									}}
 									className="flex justify-between"
 								>
@@ -709,45 +688,6 @@ export function MonitorsTable() {
 									{groupFilter === group.id && <Check className="h-4 w-4" />}
 								</DropdownMenuItem>
 							))}
-
-							<div className="my-2 h-px bg-muted" />
-
-							<div className="mb-2 px-2 font-semibold text-muted-foreground text-xs uppercase">
-								Page Size
-							</div>
-							{/** biome-ignore lint/a11y/noStaticElementInteractions: its okay */}
-							{/** biome-ignore lint/a11y/useKeyWithClickEvents: ITS OKAY! */}
-							<div
-								className="px-2"
-								onClick={(e) => e.stopPropagation()}
-								onPointerDown={(e) => e.stopPropagation()}
-							>
-								<Select
-									value={pageSizeParam}
-									onValueChange={(value) => {
-										void setFilters({
-											pageSize: value as (typeof PAGE_SIZE_OPTIONS)[number],
-											page: 1,
-										});
-									}}
-								>
-									<SelectTrigger
-										className="h-8 w-full"
-										onPointerDown={(e) => e.stopPropagation()}
-									>
-										<SelectValue placeholder="Page size">
-											{pageSize} per page
-										</SelectValue>
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZE_OPTIONS.map((size) => (
-											<SelectItem key={size} value={size}>
-												{size} per page
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
 
 							<div className="my-2 h-px bg-muted" />
 
@@ -768,7 +708,7 @@ export function MonitorsTable() {
 							</div>
 							<DropdownMenuItem
 								onClick={() => {
-									void setFilters({ tagId: null, page: 1 });
+									void setFilters({ tagId: null });
 								}}
 								className="flex justify-between"
 							>
@@ -779,7 +719,7 @@ export function MonitorsTable() {
 								<DropdownMenuItem
 									key={tag.id}
 									onClick={() => {
-										void setFilters({ tagId: tag.id, page: 1 });
+										void setFilters({ tagId: tag.id });
 									}}
 									className="flex justify-between"
 								>
@@ -828,6 +768,12 @@ export function MonitorsTable() {
 					<ChevronDown className="h-4 w-4" />
 					Monitors
 				</div>
+				{isCapped && (
+					<div className="border-b bg-amber-50 px-4 py-2 text-amber-900 text-sm dark:bg-amber-950/30 dark:text-amber-200">
+						Showing the first {MONITOR_LIST_LIMIT} of {total} monitors. Use the
+						filters to narrow the list and see the rest.
+					</div>
+				)}
 				<Table>
 					<TableBody>
 						{isLoading ? (
@@ -904,68 +850,6 @@ export function MonitorsTable() {
 						)}
 					</TableBody>
 				</Table>
-
-				{totalPages > 1 && (
-					<div className="flex items-center justify-end border-t bg-muted/20 px-4 py-3">
-						<Pagination className="mx-0 w-auto">
-							<PaginationContent>
-								<PaginationItem>
-									<Button
-										variant="ghost"
-										size="icon"
-										disabled={page === 1}
-										onClick={() => void setFilters({ page: page - 1 })}
-									>
-										<ChevronLeftIcon className="h-4 w-4" />
-									</Button>
-								</PaginationItem>
-								{Array.from({ length: totalPages }, (_, i) => i + 1).map(
-									(p) => {
-										// Simple windowing logic
-										if (
-											totalPages > 7 &&
-											(p < page - 2 || p > page + 2) &&
-											p !== 1 &&
-											p !== totalPages
-										) {
-											if (p === page - 3 || p === page + 3) {
-												return (
-													<PaginationItem key={p}>
-														<PaginationEllipsis />
-													</PaginationItem>
-												);
-											}
-											return null;
-										}
-
-										return (
-											<PaginationItem key={p}>
-												<Button
-													variant={p === page ? "outline" : "ghost"}
-													size="icon"
-													onClick={() => void setFilters({ page: p })}
-													className="h-8 w-8"
-												>
-													{p}
-												</Button>
-											</PaginationItem>
-										);
-									},
-								)}
-								<PaginationItem>
-									<Button
-										variant="ghost"
-										size="icon"
-										onClick={() => void setFilters({ page: page + 1 })}
-										disabled={page === totalPages}
-									>
-										<ChevronRightIcon className="h-4 w-4" />
-									</Button>
-								</PaginationItem>
-							</PaginationContent>
-						</Pagination>
-					</div>
-				)}
 			</div>
 
 			<GroupCreationDialog open={groupsOpen} onOpenChange={setGroupsOpen} />
