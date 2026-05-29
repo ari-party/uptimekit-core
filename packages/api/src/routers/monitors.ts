@@ -1346,6 +1346,10 @@ export const monitorsRouter = {
 				updates.parentId = input.parentId ?? null;
 			}
 
+			if (Object.keys(updates).length === 0) {
+				return existing;
+			}
+
 			const [updated] = await db
 				.update(monitorGroup)
 				.set(updates)
