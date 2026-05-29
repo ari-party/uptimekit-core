@@ -18,7 +18,6 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +88,9 @@ export function GroupsManager({
 	const [editName, setEditName] = useState("");
 	const [editParentId, setEditParentId] = useState<string | null>(null);
 
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [deletingGroup, setDeletingGroup] = useState<GroupRecord | null>(null);
+
 	const queryClient = useQueryClient();
 
 	const { data: groups } = useQuery({
@@ -132,7 +134,7 @@ export function GroupsManager({
 		onError: () => sileo.error({ title: "Failed to update group" }),
 	});
 
-	const { mutate: deleteGroup } = useMutation({
+	const { mutate: deleteGroup, isPending: isDeleting } = useMutation({
 		mutationFn: (id: string) => client.monitors.deleteGroup({ id }),
 		onSuccess: () => {
 			sileo.success({ title: "Group deleted" });
@@ -140,6 +142,8 @@ export function GroupsManager({
 				queryKey: orpc.monitors.listGroups.key(),
 			});
 			queryClient.invalidateQueries({ queryKey: orpc.monitors.list.key() });
+			setDeleteOpen(false);
+			setDeletingGroup(null);
 		},
 		onError: () => sileo.error({ title: "Failed to delete group" }),
 	});
@@ -163,6 +167,11 @@ export function GroupsManager({
 		setEditName(group.name);
 		setEditParentId(group.parentId ?? null);
 		setEditOpen(true);
+	};
+
+	const openDelete = (group: GroupRecord) => {
+		setDeletingGroup(group);
+		setDeleteOpen(true);
 	};
 
 	const invalidParentIds = editingGroup
@@ -281,39 +290,13 @@ export function GroupsManager({
 										<Pencil className="mr-2 h-4 w-4" />
 										Edit
 									</DropdownMenuItem>
-									<AlertDialog>
-										<AlertDialogTrigger
-											render={
-												<DropdownMenuItem
-													className="text-red-500"
-													onSelect={(e) => e.preventDefault()}
-												/>
-											}
-										>
-											<Trash2 className="mr-2 h-4 w-4" />
-											Delete
-										</AlertDialogTrigger>
-										<AlertDialogContent>
-											<AlertDialogHeader>
-												<AlertDialogTitle>Delete Group</AlertDialogTitle>
-												<AlertDialogDescription>
-													Are you sure you want to delete this group? Any
-													subgroups will move up to its parent, and monitors in
-													this group will not be deleted.
-												</AlertDialogDescription>
-											</AlertDialogHeader>
-											<AlertDialogFooter>
-												<AlertDialogCancel>Cancel</AlertDialogCancel>
-												<Button
-													type="button"
-													className="bg-red-500 hover:bg-red-600"
-													onClick={() => deleteGroup(group.id)}
-												>
-													Delete
-												</Button>
-											</AlertDialogFooter>
-										</AlertDialogContent>
-									</AlertDialog>
+									<DropdownMenuItem
+										className="text-red-500"
+										onClick={() => openDelete(group)}
+									>
+										<Trash2 className="mr-2 h-4 w-4" />
+										Delete
+									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						)}
@@ -398,6 +381,36 @@ export function GroupsManager({
 						</DialogFooter>
 					</DialogPopup>
 				</Dialog>
+			)}
+
+			{!readOnly && (
+				<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Delete Group</AlertDialogTitle>
+							<AlertDialogDescription>
+								Are you sure you want to delete this group? Any subgroups will
+								move up to its parent, and monitors in this group will not be
+								deleted.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<Button
+								type="button"
+								className="bg-red-500 hover:bg-red-600"
+								disabled={isDeleting}
+								onClick={() => {
+									if (deletingGroup) {
+										deleteGroup(deletingGroup.id);
+									}
+								}}
+							>
+								Delete
+							</Button>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 			)}
 		</div>
 	);

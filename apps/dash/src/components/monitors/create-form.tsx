@@ -49,6 +49,7 @@ import {
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
+	DialogPanel,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -1786,7 +1787,9 @@ export function CreateMonitorForm({
 							this form.
 						</DialogDescription>
 					</DialogHeader>
-					<GroupsManager />
+					<DialogPanel>
+						<GroupsManager />
+					</DialogPanel>
 				</DialogContent>
 			</Dialog>
 			<TagCreationDialog open={tagsOpen} onOpenChange={setTagsOpen} />
@@ -1798,7 +1801,9 @@ export function CreateMonitorForm({
 							Create, edit, and delete monitor tags without leaving this form.
 						</DialogDescription>
 					</DialogHeader>
-					<TagsManager />
+					<DialogPanel>
+						<TagsManager />
+					</DialogPanel>
 				</DialogContent>
 			</Dialog>
 		</>
