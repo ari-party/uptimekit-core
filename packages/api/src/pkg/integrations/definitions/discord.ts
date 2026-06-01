@@ -7,6 +7,12 @@ import {
 	discordIntegrationMeta,
 } from "./discord-meta";
 
+function discordWebhookUrl(webhookUrl: string) {
+	const url = new URL(webhookUrl);
+	url.searchParams.set("with_components", "true");
+	return url.toString();
+}
+
 export const discordIntegration: IntegrationDefinition<
 	z.infer<typeof DiscordConfigSchema>
 > = {
@@ -44,7 +50,7 @@ export const discordIntegration: IntegrationDefinition<
 				],
 			};
 
-			await fetchIntegrationWebhook(config.webhookUrl, {
+			await fetchIntegrationWebhook(discordWebhookUrl(config.webhookUrl), {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -77,7 +83,7 @@ export const discordIntegration: IntegrationDefinition<
 				sslPayload.error ||
 				`Certificate expires in ${sslPayload.daysUntilExpiry} day${sslPayload.daysUntilExpiry === 1 ? "" : "s"}.`;
 
-			await fetchIntegrationWebhook(config.webhookUrl, {
+			await fetchIntegrationWebhook(discordWebhookUrl(config.webhookUrl), {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -247,7 +253,7 @@ export const discordIntegration: IntegrationDefinition<
 			},
 		];
 
-		await fetchIntegrationWebhook(config.webhookUrl, {
+		await fetchIntegrationWebhook(discordWebhookUrl(config.webhookUrl), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
