@@ -199,9 +199,22 @@ export class IntegrationService {
 				),
 			);
 
-		return dedupeNotificationConfigs(
+		const configs = dedupeNotificationConfigs(
 			assignedConfigs.map(({ config }) => config),
 		);
+
+		if (configs.length > 0) {
+			return configs;
+		}
+
+		return db.query.integrationConfig.findMany({
+			where: (t, { eq, and }) =>
+				and(
+					eq(t.organizationId, input.organizationId),
+					eq(t.active, true),
+					eq(t.isDefault, true),
+				),
+		});
 	}
 }
 

@@ -105,4 +105,50 @@ describe("notification config selection", () => {
 			event.payload,
 		);
 	});
+
+	it("falls back to default configs when a monitor-backed incident has no explicit assignment", async () => {
+		mocks.incidentMonitors = [{ monitorId: "monitor-1" }];
+		mocks.assignedConfigs = [];
+		mocks.defaultConfigs = [
+			{
+				id: "config-default",
+				type: "test-default-fallback",
+				config: { url: "https://example.com/default-webhook" },
+			},
+		];
+
+		integrationRegistry.register({
+			id: "test-default-fallback",
+			name: "Test Default Fallback",
+			type: "export",
+			description: "Test integration",
+			configSchema: { parse: (value: unknown) => value } as any,
+			events: ["incident.created"],
+			handler: mocks.handler,
+		});
+
+		const service = new IntegrationService();
+		const event: PersistedAppEvent<"incident.created"> = {
+			id: "event-2",
+			eventName: "incident.created",
+			organizationId: "org-1",
+			payload: {
+				incidentId: "incident-1",
+				organizationId: "org-1",
+				title: "Monitor is down",
+				severity: "major",
+			},
+			attempts: 1,
+			createdAt: new Date("2026-06-01T10:00:00.000Z"),
+			availableAt: new Date("2026-06-01T10:00:00.000Z"),
+		};
+
+		await service.handleAppEvent(event);
+
+		expect(mocks.handler).toHaveBeenCalledWith(
+			{ url: "https://example.com/default-webhook" },
+			"incident.created",
+			event.payload,
+		);
+	});
 });
