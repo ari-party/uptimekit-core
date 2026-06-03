@@ -40,6 +40,7 @@ import {
 import { enforceMonitorQuotaOrThrow } from "../lib/organization-limits";
 
 const RESPONSE_TIME_RANGE_VALUES = [
+	"3h",
 	"24h",
 	"7d",
 	"30d",
@@ -58,6 +59,9 @@ function getResponseTimeRangeStart(
 	const startDate = new Date();
 
 	switch (range) {
+		case "3h":
+			startDate.setHours(startDate.getHours() - 3);
+			return startDate;
 		case "24h":
 			startDate.setHours(startDate.getHours() - 24);
 			return startDate;
