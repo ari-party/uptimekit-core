@@ -1177,11 +1177,16 @@ export const monitorsRouter = {
 					? input.workerIds
 					: undefined;
 
+			// Scale the cap by worker count; a single shared cap would shrink the
+			// visible time window as more workers compete for the same row budget.
+			const workerCount = Math.max(filterLocations?.length ?? 1, 1);
+			const limit = input.allChecks ? null : 2000 * workerCount;
+
 			const events = await timeseries.getResponseTimes({
 				monitorId: input.monitorId,
 				since: startDate,
 				locations: filterLocations,
-				limit: input.allChecks ? null : 2000,
+				limit,
 			});
 
 			return events.map((e) => ({

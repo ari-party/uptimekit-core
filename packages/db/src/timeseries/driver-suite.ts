@@ -476,6 +476,44 @@ export function defineDriverTests(
 				expect(capped).toHaveLength(1);
 				expect(uncapped).toHaveLength(3);
 			});
+
+			it("keeps the most recent events when the limit caps the result", async () => {
+				const driver = getDriver();
+				const monitorId = uid("response-recent");
+				const now = new Date();
+
+				await driver.insertMonitorEvents([
+					{
+						id: crypto.randomUUID(),
+						monitorId,
+						status: "up",
+						latency: 100,
+						timestamp: new Date(now.getTime() - 120_000),
+					},
+					{
+						id: crypto.randomUUID(),
+						monitorId,
+						status: "up",
+						latency: 150,
+						timestamp: new Date(now.getTime() - 60_000),
+					},
+					{
+						id: crypto.randomUUID(),
+						monitorId,
+						status: "up",
+						latency: 200,
+						timestamp: now,
+					},
+				]);
+
+				const capped = await driver.getResponseTimes({
+					monitorId,
+					since: new Date(now.getTime() - 180_000),
+					limit: 2,
+				});
+
+				expect(capped.map((point) => point.latency)).toEqual([150, 200]);
+			});
 		});
 
 		describe("worker status snapshots", () => {
