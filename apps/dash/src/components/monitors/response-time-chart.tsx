@@ -131,6 +131,7 @@ const QUANTILE_OPTIONS = [
 ] as const;
 
 const RANGE_OPTIONS = [
+	{ label: "Last 3 hours", value: "3h" },
 	{ label: "Last day", value: "24h" },
 	{ label: "Last week", value: "7d" },
 	{ label: "Last month", value: "30d" },
