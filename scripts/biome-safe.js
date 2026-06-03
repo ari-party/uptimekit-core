@@ -20,6 +20,7 @@ const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const child = spawn(command, ["exec", ...args], {
 	stdio: "inherit",
+	shell: process.platform === "win32",
 });
 
 child.on("error", (err) => {
