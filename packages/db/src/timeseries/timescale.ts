@@ -25,6 +25,9 @@ export interface TimescaleDriverOptions {
 	autoCreateExtension?: boolean;
 }
 
+const MONITOR_EVENTS_COMPRESS_AFTER = "7 days";
+const MONITOR_CHANGES_COMPRESS_AFTER = "14 days";
+
 function formatDateHour(date: Date): string {
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
@@ -129,6 +132,38 @@ export class TimescaleDriver implements TimeSeriesDriver {
 				await sql.unsafe(
 					"CREATE INDEX IF NOT EXISTS monitor_changes_monitor_time_idx ON monitor_changes (monitor_id, timestamp DESC)",
 				);
+
+				await sql.unsafe(`
+					ALTER TABLE monitor_events SET (
+						timescaledb.compress,
+						timescaledb.compress_segmentby = 'monitor_id, location',
+						timescaledb.compress_orderby = 'timestamp DESC'
+					)
+				`);
+
+				await sql.unsafe(`
+					SELECT add_compression_policy(
+						'monitor_events',
+						compress_after => INTERVAL '${MONITOR_EVENTS_COMPRESS_AFTER}',
+						if_not_exists => TRUE
+					)
+				`);
+
+				await sql.unsafe(`
+					ALTER TABLE monitor_changes SET (
+						timescaledb.compress,
+						timescaledb.compress_segmentby = 'monitor_id',
+						timescaledb.compress_orderby = 'timestamp DESC'
+					)
+				`);
+
+				await sql.unsafe(`
+					SELECT add_compression_policy(
+						'monitor_changes',
+						compress_after => INTERVAL '${MONITOR_CHANGES_COMPRESS_AFTER}',
+						if_not_exists => TRUE
+					)
+				`);
 			})().catch((error) => {
 				this.schemaInit = null;
 				throw error;
