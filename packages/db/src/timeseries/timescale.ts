@@ -133,43 +133,57 @@ export class TimescaleDriver implements TimeSeriesDriver {
 					"CREATE INDEX IF NOT EXISTS monitor_changes_monitor_time_idx ON monitor_changes (monitor_id, timestamp DESC)",
 				);
 
-				await sql.unsafe(`
-					ALTER TABLE monitor_events SET (
-						timescaledb.compress,
-						timescaledb.compress_segmentby = 'monitor_id, location',
-						timescaledb.compress_orderby = 'timestamp DESC'
-					)
-				`);
+				await this.enableCompression(sql, {
+					table: "monitor_events",
+					segmentBy: "monitor_id, location",
+					compressAfter: MONITOR_EVENTS_COMPRESS_AFTER,
+				});
 
-				await sql.unsafe(`
-					SELECT add_compression_policy(
-						'monitor_events',
-						compress_after => INTERVAL '${MONITOR_EVENTS_COMPRESS_AFTER}',
-						if_not_exists => TRUE
-					)
-				`);
-
-				await sql.unsafe(`
-					ALTER TABLE monitor_changes SET (
-						timescaledb.compress,
-						timescaledb.compress_segmentby = 'monitor_id',
-						timescaledb.compress_orderby = 'timestamp DESC'
-					)
-				`);
-
-				await sql.unsafe(`
-					SELECT add_compression_policy(
-						'monitor_changes',
-						compress_after => INTERVAL '${MONITOR_CHANGES_COMPRESS_AFTER}',
-						if_not_exists => TRUE
-					)
-				`);
+				await this.enableCompression(sql, {
+					table: "monitor_changes",
+					segmentBy: "monitor_id",
+					compressAfter: MONITOR_CHANGES_COMPRESS_AFTER,
+				});
 			})().catch((error) => {
 				this.schemaInit = null;
 				throw error;
 			});
 		}
 		await this.schemaInit;
+	}
+
+	// `ALTER TABLE ... SET (timescaledb.compress, ...)` is not idempotent: once
+	// chunks are compressed it throws on re-run, so only apply it when
+	// compression isn't already enabled. The policy itself is idempotent.
+	private async enableCompression(
+		sql: ReturnType<typeof postgres>,
+		options: { table: string; segmentBy: string; compressAfter: string },
+	) {
+		const { table, segmentBy, compressAfter } = options;
+
+		const rows = await sql<{ compression_enabled: boolean }[]>`
+			SELECT compression_enabled
+			FROM timescaledb_information.hypertables
+			WHERE hypertable_name = ${table}
+		`;
+
+		if (!rows[0]?.compression_enabled) {
+			await sql.unsafe(`
+				ALTER TABLE ${table} SET (
+					timescaledb.compress,
+					timescaledb.compress_segmentby = '${segmentBy}',
+					timescaledb.compress_orderby = 'timestamp DESC'
+				)
+			`);
+		}
+
+		await sql.unsafe(`
+			SELECT add_compression_policy(
+				'${table}',
+				compress_after => INTERVAL '${compressAfter}',
+				if_not_exists => TRUE
+			)
+		`);
 	}
 
 	async insertMonitorEvents(events: MonitorEventInsert[]) {
